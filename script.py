@@ -8,12 +8,12 @@ intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='.', intents=intents)
 
 load_dotenv()
-booster_role = int(os.getenv('BOOSTER_ROLE'))
-member_role  = int(os.getenv('MEMBER_ROLE'))
+booster_role = int(os.getenv('BOOSTER_ROLE', '0'))
+member_role  = int(os.getenv('MEMBER_ROLE', '0'))
 
 @bot.event
 async def on_ready():
-    print(f'We have logged in as {bot.user}')
+    print(f'[DEBUG] Bot set up successful   | Bot: {bot.user}')
 
 @bot.event
 async def on_message(message):
@@ -24,13 +24,11 @@ async def on_message(message):
 
 @bot.event
 async def on_member_join(member):
-    role = member.guild.get_role(member_role)
-    await member.add_roles(role)
+    await member.add_roles(member_role)
 
 @bot.event
 async def on_member_update(before, after):
-    booster_role = after.guild.get_role(booster_role)
-    
+
     if before.premium_since != after.premium_since:
         if after.premium_since:
             await after.add_roles(booster_role)
@@ -64,4 +62,12 @@ async def wipe(ctx):
     await ctx.channel.purge()
     await ctx.send(f"Wiped channel", delete_after=5)
 
-bot.run(os.getenv('TOKEN'))
+token = str(os.getenv('TOKEN', None))
+if (token is None) or ((booster_role == 0) or (member_role == 0)):
+    print("[ERROR] enviroment was not set up correctly.")
+    print(f"[DEBUG] Booster Role: {booster_role}           |  Valid: {'Yes' if booster_role != 0 else 'No'}")
+    print(f"[DEBUG] Member Role:  {member_role}            |  Valid: {'Yes' if booster_role != 0 else 'No'}")
+    print(f"[DEBUG] Bot Token:    {token.split('.')[0]}    |  Valid: {'Yes' if booster_role != 0 else 'No'}")
+else:
+    print("[DEBUG] All checks passed. Running bot.")
+    bot.run(token)
