@@ -2,14 +2,14 @@ import discord, aiohttp, os
 from discord.ext import commands
 from dotenv import load_dotenv
 
-load_dotenv()
 
 intents = discord.Intents.all()
 
 bot = commands.Bot(command_prefix='.', intents=intents)
 
-booster_role = os.getenv('BOOSTER_ROLE')
-member_role  = os.getenv('MEMBER_ROLE')
+load_dotenv()
+booster_role = int(os.getenv('BOOSTER_ROLE'))
+member_role  = int(os.getenv('MEMBER_ROLE'))
 
 @bot.event
 async def on_ready():
@@ -27,16 +27,17 @@ async def on_member_join(member):
     role = member.guild.get_role(member_role)
     await member.add_roles(role)
 
-@bot.command()
-async def check_booster(ctx, member: discord.Member):
-    role = member.guild.get_role(booster_role)
-    if member.premium_since:
-        await ctx.send(f"{member} is boosting!")
-        await member.add_roles(role)
-    else:
-        await ctx.send(f"{member} is not boosting")
-        await member.remove_roles(role)
+@bot.event
+async def on_member_update(before, after):
+    booster_role = after.guild.get_role(booster_role)
+    
+    if before.premium_since != after.premium_since:
+        if after.premium_since:
+            await after.add_roles(booster_role)
+        else:
+            await after.remove_roles(booster_role)
 
+@bot.command()
 async def delete_webhook(webhook):
     async with aiohttp.ClientSession() as session:
         async with session.delete(webhook) as response:
