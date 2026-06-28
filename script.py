@@ -37,7 +37,7 @@ async def on_member_update(before, after):
         else:
             await after.remove_roles(booster_role)
 
-@bot.command()
+
 async def delete_webhook(webhook):
     async with aiohttp.ClientSession() as session:
         async with session.delete(webhook) as response:
