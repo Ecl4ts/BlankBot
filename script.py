@@ -67,11 +67,21 @@ async def wipe(ctx):
 @bot.command()
 @commands.has_permissions(manage_roles=True)
 async def role_all(ctx, role: discord.Role):
+    members = ctx.guild.members
+    total = len(members)
     success = 0
     failed = 0
     ratelimited = 0
 
-    for member in ctx.guild.members:
+    status_msg = await ctx.send(
+        f"Role: {role.name}\n"
+        f"Progress: 0/{total}\n"
+        f"Success: 0\n"
+        f"Failed: 0\n"
+        f"Rate limited: 0"
+    )
+
+    for i, member in enumerate(members, start=1):
         try:
             await member.add_roles(role)
             success += 1
@@ -81,13 +91,22 @@ async def role_all(ctx, role: discord.Role):
             else:
                 failed += 1
 
-    await ctx.send(
+        if i % 10 == 0 or i == total:
+            await status_msg.edit(content=(
+                f"Role: {role.name}\n"
+                f"Progress: {i}/{total}\n"
+                f"Success: {success}\n"
+                f"Failed: {failed}\n"
+                f"Rate limited: {ratelimited}"
+            ))
+
+    await status_msg.edit(content=(
         f"Role: {role.name}\n"
+        f"Done: {total}/{total}\n"
         f"Success: {success}\n"
         f"Failed: {failed}\n"
-        f"Rate limited: {ratelimited}\n"
-        f"Total: {len(ctx.guild.members)}"
-    )
+        f"Rate limited: {ratelimited}"
+    ))
 
 token = os.getenv('TOKEN')
 if (token is None) or ((booster_role == 0) or (member_role == 0)):
