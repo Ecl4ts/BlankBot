@@ -10,6 +10,7 @@ bot = commands.Bot(command_prefix='.', intents=intents)
 load_dotenv()
 booster_role = int(os.getenv('BOOSTER_ROLE', '0'))
 member_role  = int(os.getenv('MEMBER_ROLE', '0'))
+honeypot_channel = int(os.getenv('HONEYPOT_CHANNEL', '0'))
 
 @bot.event
 async def on_ready():
@@ -17,8 +18,26 @@ async def on_ready():
 
 @bot.event
 async def on_message(message):
-    if message.author == bot.user:
+    if message.author.bot:
         return
+
+    if message.channel.id == honeypot_channel:
+        try:
+            await message.delete()
+        except discord.HTTPException:
+            pass
+
+        for channel in message.guild.text_channels:
+            try:
+                await channel.purge(limit=100, check=lambda m: m.author.id == message.author.id)
+            except discord.HTTPException:
+                pass
+
+        try:
+            await message.author.kick(reason="Triggered honeypot")
+        except discord.Forbidden:
+            pass
+
     await bot.process_commands(message)
 
 
@@ -65,6 +84,12 @@ async def wipe(ctx):
     await ctx.send(f"Wiped channel", delete_after=5)
 
 @bot.command()
+async def member_count(ctx):
+    member_count = ctx.guild.member_count
+    await ctx.send(f"{ctx.guild.name} has {member_count} members.")
+
+
+@bot.command()
 @commands.has_permissions(manage_roles=True)
 async def role_all(ctx, role: discord.Role):
     members = ctx.guild.members
@@ -109,10 +134,11 @@ async def role_all(ctx, role: discord.Role):
     ))
 
 token = os.getenv('TOKEN')
-if (token is None) or ((booster_role == 0) or (member_role == 0)):
+if (token is None) or ((booster_role == 0) or (member_role == 0)) or (honeypot_channel == 0):
     print("[ERROR] environment variables were not set up correctly.")
     print(f"[DEBUG] Booster Role: {booster_role}           |  Valid: {'Yes' if booster_role != 0 else 'No'}")
     print(f"[DEBUG] Member Role:  {member_role}            |  Valid: {'Yes' if member_role != 0 else 'No'}")
+    print(f"[DEBUG] Honeypot Channel: {honeypot_channel} |  Valid: {'Yes' if honeypot_channel != 0 else 'No'}")
     print(f"[DEBUG] Bot Token:    {(token.split('.')[0]) if token else "None"}    |  Valid: {'Yes' if token else 'No'}")
 else:
     print("[DEBUG] All checks passed. Running bot.")
