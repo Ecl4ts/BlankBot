@@ -1,16 +1,25 @@
-import discord, aiohttp, os
+import discord, aiohttp, os, asyncio
 from discord.ext import commands
 from dotenv import load_dotenv
+
+load_dotenv()
+booster_role         = int(os.getenv('BOOSTER_ROLE', '0'))
+member_role          = int(os.getenv('MEMBER_ROLE', '0'))
+honeypot_channel     = int(os.getenv('HONEYPOT_CHANNEL', '0'))
+
+bot_prefix           = str(os.getenv('PREFIX', '.'))
+honeypot_enabled     = bool(os.getenv('HONEYPOT_ENABLED', 'False'))
+booster_role_enabled = bool(os.getenv('BOOSTER_ROLE_ENABLED', 'False'))
+auto_role_enabled    = bool(os.getenv('AUTO_ROLE_ENABLED', 'False'))
+
 
 
 intents = discord.Intents.all()
 
-bot = commands.Bot(command_prefix='.', intents=intents)
+bot = commands.Bot(command_prefix=bot_prefix, intents=intents)
 
-load_dotenv()
-booster_role = int(os.getenv('BOOSTER_ROLE', '0'))
-member_role  = int(os.getenv('MEMBER_ROLE', '0'))
-honeypot_channel = int(os.getenv('HONEYPOT_CHANNEL', '0'))
+
+
 
 @bot.event
 async def on_ready():
@@ -21,21 +30,18 @@ async def on_message(message):
     if message.author.bot:
         return
 
-    if message.channel.id == honeypot_channel:
+    if honeypot_enabled and message.channel.id == honeypot_channel:
         try:
             await message.delete()
         except discord.HTTPException:
+            print(f"[DEBUG] Failed to delete message from {message.author} in honeypot channel.")
             pass
-
-        for channel in message.guild.text_channels:
-            try:
-                await channel.purge(limit=100, check=lambda m: m.author.id == message.author.id)
-            except discord.HTTPException:
-                pass
-
         try:
-            await message.author.kick(reason="Triggered honeypot")
-        except discord.Forbidden:
+            await message.author.send(f"You have triggered a honeypot in {message.guild.name}. You have been banned from the server.\nThis ban expires in 24 hours. (1 day)")
+            await message.author.ban(reason="Triggered honeypot", delete_message_seconds=86400)
+            await asyncio.sleep(60*60*24)
+        except discord.HTTPException:
+            print(f"[DEBUG] Failed to ban {message.author} for triggering honeypot.")
             pass
 
     await bot.process_commands(message)
@@ -43,10 +49,13 @@ async def on_message(message):
 
 @bot.event
 async def on_member_join(member):
-    await member.add_roles(member.guild.get_role(member_role))
+    if auto_role_enabled:
+        await member.add_roles(member.guild.get_role(member_role))
 
 @bot.event
 async def on_member_update(before, after):
+    if not booster_role_enabled:
+        return
     if before.premium_since != after.premium_since:
         role = after.guild.get_role(booster_role)
         if not role:
@@ -74,6 +83,7 @@ async def delete(ctx, webhook):
 @bot.command()
 @commands.has_permissions(manage_messages=True)
 async def purge(ctx, amount: int):
+    print(f"Purging {amount}")
     await ctx.channel.purge(limit=(amount + 1))
     await ctx.send(f"Purged {amount} messages", delete_after=5)
 
@@ -134,7 +144,7 @@ async def role_all(ctx, role: discord.Role):
     ))
 
 token = os.getenv('TOKEN')
-if (token is None) or ((booster_role == 0) or (member_role == 0)) or (honeypot_channel == 0):
+if (token is None) or ((booster_role == 0 and booster_role_enabled) or (member_role == 0 and auto_role_enabled) or (honeypot_channel == 0 and honeypot_enabled)):
     print("[ERROR] environment variables were not set up correctly.")
     print(f"[DEBUG] Booster Role: {booster_role}           |  Valid: {'Yes' if booster_role != 0 else 'No'}")
     print(f"[DEBUG] Member Role:  {member_role}            |  Valid: {'Yes' if member_role != 0 else 'No'}")
